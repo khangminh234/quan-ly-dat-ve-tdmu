@@ -41,7 +41,7 @@
           1. Đặt vé &amp; Chọn ghế
         </button>
         <button onclick="switchTab('payment')" id="tab-payment" class="tab-btn px-3.5 py-2 rounded-lg text-sm font-semibold text-blue-100 hover:bg-blue-800 transition">
-          2. Thanh toán &amp; Vé QR <span id="badge-unpaid" class="ml-1 px-1.5 py-0.2 text-xs bg-amber-400 text-slate-900 rounded-full font-bold hidden">0</span>
+          2. Thanh toán &amp; Vé QR <span id="badge-unpaid" class="ml-1 px-1.5 py-0.5 text-xs bg-amber-400 text-slate-900 rounded-full font-bold hidden">0</span>
         </button>
         <button onclick="switchTab('checkin')" id="tab-checkin" class="tab-btn px-3.5 py-2 rounded-lg text-sm font-semibold text-blue-100 hover:bg-blue-800 transition">
           3. Soát vé vào rạp
@@ -81,7 +81,7 @@
             <option value="2026-11-20">20/11/2026 (Ngày mai)</option>
           </select>
         </div>
-        <div class="text-xs text-slate-500 bg-blue-50 text-blue-800 px-3 py-2.5 rounded-lg border border-blue-200">
+        <div class="text-xs bg-blue-50 text-blue-800 px-3 py-2.5 rounded-lg border border-blue-200">
           Ưu đãi sinh viên TDMU: Nhập MSSV để giảm ngay <strong>15%</strong> giá vé!
         </div>
       </div>
@@ -546,8 +546,9 @@
             btnClass = 'bg-white text-slate-700 border-slate-300 hover:border-blue-500';
           }
 
+          const clickAttr = isBooked ? 'disabled' : `onclick="toggleSeat('${seatCode}')"`;
           colsHtml += `
-            <button type="button" ${isBooked ? 'disabled' : `onclick="toggleSeat('${seatCode}')"`}
+            <button type="button" ${clickAttr}
               class="w-11 h-9 rounded-lg border-2 text-xs font-semibold transition ${btnClass}">
               ${seatCode}
             </button>
@@ -617,7 +618,6 @@
       const phone = document.getElementById('cust-phone').value.trim();
       const mssv = document.getElementById('cust-mssv').value.trim();
 
-      // Dòng rẽ nhánh 1: Kiểm tra thiếu thông tin bắt buộc
       if (selectedSeats.length === 0) {
         showToast('Lỗi: Vui lòng chọn ít nhất 1 ghế trống trên sơ đồ!', 'bg-red-600');
         return;
@@ -797,7 +797,6 @@
         return;
       }
 
-      // Vé hợp lệ -> Cập nhật trạng thái
       ticket.TrangThaiVe = 'Đã soát vé';
       saveDB();
 
@@ -882,14 +881,12 @@
       const paidInvoiceIds = db.invoices.filter(i => i.TrangThaiTT === 'Đã thanh toán').map(i => i.MaHD);
       const paidTickets = db.tickets.filter(t => paidInvoiceIds.includes(t.MaHD));
 
-      let csv = '﻿Ma Phim,Ten Phim,So Suat Chieu,So Ve Da Ban,Doanh Thu (VND)
-';
+      let csv = '\uFEFFMa Phim,Ten Phim,So Suat Chieu,So Ve Da Ban,Doanh Thu (VND)\n';
       db.movies.forEach(movie => {
         const scIds = db.showtimes.filter(s => s.MaPhim === movie.MaPhim).map(s => s.MaSuatChieu);
         const mTickets = paidTickets.filter(t => scIds.includes(t.MaSuatChieu));
         const rev = mTickets.reduce((sum, t) => sum + t.GiaVeThucTe, 0);
-        csv += `"${movie.MaPhim}","${movie.TenPhim}",${scIds.length},${mTickets.length},${rev}
-`;
+        csv += `"${movie.MaPhim}","${movie.TenPhim}",${scIds.length},${mTickets.length},${rev}\n`;
       });
 
       const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
