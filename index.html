@@ -1,0 +1,914 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Hệ thống Quản lý Đặt vé Xem phim - Rạp TDMU</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');
+    body { font-family: 'Inter', sans-serif; background-color: #f1f5f9; }
+    .screen-curve {
+      height: 14px;
+      background: linear-gradient(180deg, #3b82f6 0%, rgba(59,130,246,0.05) 100%);
+      border-top: 4px solid #1d4ed8;
+      border-radius: 50% 50% 0 0 / 100% 100% 0 0;
+      box-shadow: 0 -6px 18px rgba(37, 99, 235, 0.35);
+    }
+    @media print {
+      .no-print { display: none !important; }
+      body { background: #fff; }
+    }
+  </style>
+</head>
+<body class="text-slate-800 min-h-screen flex flex-col">
+
+  <!-- HEADER -->
+  <header class="bg-[#004B8D] text-white shadow-md no-print">
+    <div class="max-w-7xl mx-auto px-4 py-3 flex flex-wrap items-center justify-between gap-4">
+      <div class="flex items-center gap-3">
+        <div class="w-10 h-10 rounded-lg bg-white text-[#004B8D] font-extrabold flex items-center justify-center text-lg shadow">
+          TDMU
+        </div>
+        <div>
+          <h1 class="font-bold text-lg leading-tight">RẠP CHIẾU PHIM TDMU CINEMA</h1>
+          <p class="text-xs text-blue-200">Hệ thống Quản lý Đặt vé &amp; Vận hành Rạp (Đồ án PTTKHT)</p>
+        </div>
+      </div>
+
+      <nav class="flex flex-wrap items-center gap-2">
+        <button onclick="switchTab('booking')" id="tab-booking" class="tab-btn px-3.5 py-2 rounded-lg text-sm font-semibold bg-white text-[#004B8D] shadow transition">
+          1. Đặt vé &amp; Chọn ghế
+        </button>
+        <button onclick="switchTab('payment')" id="tab-payment" class="tab-btn px-3.5 py-2 rounded-lg text-sm font-semibold text-blue-100 hover:bg-blue-800 transition">
+          2. Thanh toán &amp; Vé QR <span id="badge-unpaid" class="ml-1 px-1.5 py-0.2 text-xs bg-amber-400 text-slate-900 rounded-full font-bold hidden">0</span>
+        </button>
+        <button onclick="switchTab('checkin')" id="tab-checkin" class="tab-btn px-3.5 py-2 rounded-lg text-sm font-semibold text-blue-100 hover:bg-blue-800 transition">
+          3. Soát vé vào rạp
+        </button>
+        <button onclick="switchTab('admin')" id="tab-admin" class="tab-btn px-3.5 py-2 rounded-lg text-sm font-semibold text-blue-100 hover:bg-blue-800 transition">
+          4. Quản lý &amp; Thống kê
+        </button>
+        <button onclick="resetDemoData()" title="Khôi phục dữ liệu mẫu ban đầu" class="ml-2 px-2.5 py-2 rounded-lg text-xs font-medium bg-blue-900/70 hover:bg-red-600 text-blue-200 hover:text-white transition">
+          Reset Dữ liệu
+        </button>
+      </nav>
+    </div>
+  </header>
+
+  <!-- TOAST NOTIFICATION -->
+  <div id="toast" class="fixed bottom-5 right-5 z-50 hidden max-w-md px-4 py-3 rounded-xl shadow-xl text-white font-medium text-sm transition-all"></div>
+
+  <!-- MAIN CONTENT -->
+  <main class="max-w-7xl mx-auto px-4 py-6 flex-1 w-full">
+
+    <!-- ===================================================================== -->
+    <!-- TAB 1: MH01 & MH02 - TRA CỨU PHIM, SUẤT CHIẾU & ĐẶT VÉ CHỌN GHẾ      -->
+    <!-- ===================================================================== -->
+    <section id="view-booking" class="space-y-6">
+      <!-- Bộ lọc tìm kiếm phim (MH01) -->
+      <div class="bg-white p-4 rounded-xl shadow-sm border border-slate-200 flex flex-wrap items-end gap-4">
+        <div class="flex-1 min-w-[220px]">
+          <label class="block text-xs font-semibold text-slate-500 uppercase mb-1">Tìm kiếm phim (TimKiemPhim)</label>
+          <input type="text" id="search-movie" oninput="renderMovies()" placeholder="Nhập tên phim cần tìm..."
+            class="w-full px-3.5 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
+        </div>
+        <div class="w-48">
+          <label class="block text-xs font-semibold text-slate-500 uppercase mb-1">Ngày chiếu</label>
+          <select id="filter-date" onchange="renderMovies()"
+            class="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
+            <option value="2026-11-19">19/11/2026 (Hôm nay)</option>
+            <option value="2026-11-20">20/11/2026 (Ngày mai)</option>
+          </select>
+        </div>
+        <div class="text-xs text-slate-500 bg-blue-50 text-blue-800 px-3 py-2.5 rounded-lg border border-blue-200">
+          Ưu đãi sinh viên TDMU: Nhập MSSV để giảm ngay <strong>15%</strong> giá vé!
+        </div>
+      </div>
+
+      <!-- Danh sách phim & Suất chiếu -->
+      <div id="movie-list" class="grid grid-cols-1 md:grid-cols-3 gap-4"></div>
+
+      <!-- Khu vực Đặt vé & Sơ đồ ghế (MH02) -->
+      <div class="grid grid-cols-1 lg:grid-cols-12 gap-6">
+        <!-- Cột trái: Sơ đồ phòng chiếu -->
+        <div class="lg:col-span-7 bg-white p-6 rounded-xl shadow-sm border border-slate-200">
+          <div class="flex flex-wrap items-center justify-between gap-2 mb-4 pb-3 border-b border-slate-100">
+            <div>
+              <span class="text-xs font-bold uppercase tracking-wider text-blue-600">Sơ đồ ghế trực quan</span>
+              <h2 id="selected-showtime-title" class="text-lg font-bold text-slate-800">Vui lòng chọn suất chiếu phía trên</h2>
+            </div>
+            <span id="selected-room-badge" class="px-3 py-1 bg-slate-100 text-slate-700 font-semibold text-xs rounded-full">Phòng: --</span>
+          </div>
+
+          <div class="max-w-md mx-auto mb-6">
+            <div class="screen-curve mb-2"></div>
+            <p class="text-center text-xs font-semibold tracking-widest text-slate-400 uppercase">Màn hình chiếu TDMU</p>
+          </div>
+
+          <!-- Lưới ghế ngồi -->
+          <div id="seat-grid" class="space-y-2.5 max-w-lg mx-auto my-4"></div>
+
+          <!-- Chú thích màu ghế -->
+          <div class="mt-6 pt-4 border-t border-slate-100 flex flex-wrap justify-center gap-5 text-xs text-slate-600">
+            <div class="flex items-center gap-1.5">
+              <span class="w-5 h-5 rounded border-2 border-slate-300 bg-white inline-block"></span> Ghế Thường (60.000đ)
+            </div>
+            <div class="flex items-center gap-1.5">
+              <span class="w-5 h-5 rounded border-2 border-purple-400 bg-purple-50 inline-block"></span> Ghế VIP (75.000đ)
+            </div>
+            <div class="flex items-center gap-1.5">
+              <span class="w-5 h-5 rounded bg-amber-500 inline-block"></span> Đang chọn
+            </div>
+            <div class="flex items-center gap-1.5">
+              <span class="w-5 h-5 rounded bg-slate-400 inline-block"></span> Đã đặt
+            </div>
+          </div>
+        </div>
+
+        <!-- Cột phải: Phiếu đặt vé (Khớp đặc tả Use Case DatVe) -->
+        <div class="lg:col-span-5 bg-white p-6 rounded-xl shadow-sm border border-slate-200 flex flex-col justify-between">
+          <div>
+            <div class="flex items-center justify-between pb-3 mb-4 border-b border-slate-100">
+              <h3 class="font-bold text-base text-[#004B8D] uppercase">Phiếu Đặt Vé Xem Phim</h3>
+              <div class="text-xs font-mono bg-blue-50 text-blue-800 px-2.5 py-1 rounded border border-blue-200 font-bold">
+                Số vé: <span id="auto-ticket-id">VE-0003</span>
+              </div>
+            </div>
+
+            <div class="space-y-3 text-sm">
+              <div class="bg-slate-50 p-3 rounded-lg border border-slate-200 space-y-1">
+                <div class="flex justify-between">
+                  <span class="text-slate-500">Phim:</span>
+                  <span id="summary-movie" class="font-semibold text-slate-800 text-right">--</span>
+                </div>
+                <div class="flex justify-between">
+                  <span class="text-slate-500">Suất chiếu / Phòng:</span>
+                  <span id="summary-time" class="font-semibold text-slate-800">--</span>
+                </div>
+                <div class="flex justify-between">
+                  <span class="text-slate-500">Ghế đã chọn:</span>
+                  <span id="summary-seats" class="font-bold text-amber-600">Chưa chọn ghế</span>
+                </div>
+              </div>
+
+              <div>
+                <label class="block text-xs font-semibold text-slate-700 mb-1">Họ tên khách hàng <span class="text-red-500">*</span></label>
+                <input type="text" id="cust-name" placeholder="VD: Nguyễn Văn An"
+                  class="w-full px-3 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500" />
+              </div>
+
+              <div>
+                <label class="block text-xs font-semibold text-slate-700 mb-1">Số điện thoại <span class="text-red-500">*</span></label>
+                <input type="tel" id="cust-phone" placeholder="VD: 0912345678"
+                  class="w-full px-3 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500" />
+              </div>
+
+              <div>
+                <label class="block text-xs font-semibold text-slate-700 mb-1">MSSV TDMU (Tùy chọn - Giảm 15%)</label>
+                <input type="text" id="cust-mssv" oninput="updatePriceSummary()" placeholder="VD: 2324802010123"
+                  class="w-full px-3 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500" />
+                <p id="discount-note" class="text-xs text-emerald-600 font-medium mt-1 hidden">✓ Đã áp dụng ưu đãi giảm 15% cho sinh viên TDMU</p>
+              </div>
+            </div>
+          </div>
+
+          <div class="mt-5 pt-4 border-t border-slate-200">
+            <div class="flex items-center justify-between mb-4">
+              <span class="text-sm font-semibold text-slate-600">Tổng thanh toán:</span>
+              <span id="summary-total" class="text-2xl font-extrabold text-[#004B8D]">0 VNĐ</span>
+            </div>
+
+            <div class="grid grid-cols-2 gap-3">
+              <button type="button" onclick="cancelBookingForm()"
+                class="py-2.5 px-4 rounded-lg border border-slate-300 text-slate-700 font-semibold text-sm hover:bg-slate-100 transition">
+                Hủy
+              </button>
+              <button type="button" onclick="submitBooking()"
+                class="py-2.5 px-4 rounded-lg bg-[#004B8D] text-white font-semibold text-sm hover:bg-blue-800 shadow transition">
+                Đặt vé
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ===================================================================== -->
+    <!-- TAB 2: MH03 - THANH TOÁN & VÉ ĐIỆN TỬ QR                              -->
+    <!-- ===================================================================== -->
+    <section id="view-payment" class="hidden space-y-6">
+      <div class="bg-white p-5 rounded-xl shadow-sm border border-slate-200 flex flex-wrap items-center justify-between gap-4">
+        <div>
+          <h2 class="text-lg font-bold text-slate-800">Danh sách Hóa đơn &amp; Vé điện tử (MH03)</h2>
+          <p class="text-xs text-slate-500">Xác nhận thanh toán cho hóa đơn đang chờ hoặc in mã QR vé điện tử để soát vé vào rạp.</p>
+        </div>
+        <div class="flex items-center gap-2 text-xs bg-amber-50 text-amber-800 px-3 py-2 rounded-lg border border-amber-200">
+          <span>Thời gian giữ ghế mặc định: <strong>05:00 phút</strong></span>
+        </div>
+      </div>
+
+      <div id="invoice-list" class="grid grid-cols-1 md:grid-cols-2 gap-5"></div>
+    </section>
+
+    <!-- ===================================================================== -->
+    <!-- TAB 3: MH04 - SOÁT VÉ VÀO RẠP                                         -->
+    <!-- ===================================================================== -->
+    <section id="view-checkin" class="hidden max-w-2xl mx-auto space-y-6">
+      <div class="bg-white p-6 rounded-xl shadow-sm border border-slate-200">
+        <span class="text-xs font-bold uppercase tracking-wider text-blue-600">Phân hệ Nhân viên soát vé (MH04)</span>
+        <h2 class="text-xl font-bold text-slate-800 mt-1 mb-4">Kiểm tra &amp; Soát vé tại cửa phòng chiếu</h2>
+
+        <div class="flex gap-2">
+          <input type="text" id="checkin-code" placeholder="Nhập hoặc quét mã vé (VD: VE-0001)..."
+            class="flex-1 px-4 py-2.5 border border-slate-300 rounded-lg font-mono uppercase focus:outline-none focus:ring-2 focus:ring-blue-500" />
+          <button onclick="verifyTicket()"
+            class="px-5 py-2.5 bg-[#004B8D] text-white font-semibold rounded-lg hover:bg-blue-800 transition">
+            Kiểm tra vé
+          </button>
+        </div>
+
+        <div class="mt-3 flex flex-wrap items-center gap-2 text-xs text-slate-500">
+          <span>Thử nhanh mã mẫu:</span>
+          <button onclick="quickFillCheckin('VE-0001')" class="px-2 py-1 bg-slate-100 hover:bg-slate-200 rounded font-mono text-slate-700">VE-0001 (Chưa dùng)</button>
+          <button onclick="quickFillCheckin('VE-0002')" class="px-2 py-1 bg-slate-100 hover:bg-slate-200 rounded font-mono text-slate-700">VE-0002 (Đã soát)</button>
+        </div>
+
+        <div id="checkin-result" class="mt-6 hidden p-4 rounded-xl border"></div>
+      </div>
+    </section>
+
+    <!-- ===================================================================== -->
+    <!-- TAB 4: MH05 - QUẢN LÝ SUẤT CHIẾU & THỐNG KÊ DOANH THU                 -->
+    <!-- ===================================================================== -->
+    <section id="view-admin" class="hidden space-y-6">
+      <!-- KPI Cards -->
+      <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <div class="bg-white p-5 rounded-xl shadow-sm border border-slate-200">
+          <p class="text-xs font-semibold text-slate-500 uppercase">Tổng doanh thu đã thanh toán</p>
+          <p id="kpi-revenue" class="text-2xl font-extrabold text-[#004B8D] mt-1">0 VNĐ</p>
+          <p class="text-xs text-emerald-600 mt-1">Cập nhật tự động từ bảng HOADON</p>
+        </div>
+        <div class="bg-white p-5 rounded-xl shadow-sm border border-slate-200">
+          <p class="text-xs font-semibold text-slate-500 uppercase">Tổng số vé đã phát hành</p>
+          <p id="kpi-tickets" class="text-2xl font-extrabold text-slate-800 mt-1">0 vé</p>
+          <p class="text-xs text-slate-500 mt-1">Bao gồm vé online và vé tại quầy</p>
+        </div>
+        <div class="bg-white p-5 rounded-xl shadow-sm border border-slate-200">
+          <p class="text-xs font-semibold text-slate-500 uppercase">Tỷ lệ lấp đầy phòng chiếu</p>
+          <p id="kpi-occupancy" class="text-2xl font-extrabold text-amber-600 mt-1">0%</p>
+          <p class="text-xs text-slate-500 mt-1">Tính trên tổng ghế các suất chiếu</p>
+        </div>
+      </div>
+
+      <div class="grid grid-cols-1 lg:grid-cols-12 gap-6">
+        <!-- Bảng thống kê doanh thu theo phim (TaoBCNgay / TaoBCThang) -->
+        <div class="lg:col-span-8 bg-white p-6 rounded-xl shadow-sm border border-slate-200">
+          <div class="flex flex-wrap items-center justify-between gap-2 mb-4">
+            <div>
+              <h3 class="font-bold text-base text-slate-800">Báo cáo Doanh thu theo Phim (MH05)</h3>
+              <p class="text-xs text-slate-500">Dữ liệu tổng hợp từ các hóa đơn có trạng thái "Đã thanh toán"</p>
+            </div>
+            <button onclick="exportCSV()"
+              class="px-3.5 py-2 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-semibold rounded-lg shadow-sm transition">
+              Xuất báo cáo Excel (.CSV)
+            </button>
+          </div>
+
+          <div class="overflow-x-auto">
+            <table class="w-full text-sm text-left border-collapse">
+              <thead>
+                <tr class="bg-[#004B8D] text-white text-xs uppercase">
+                  <th class="py-2.5 px-3 rounded-tl-lg">Mã Phim</th>
+                  <th class="py-2.5 px-3">Tên Phim</th>
+                  <th class="py-2.5 px-3 text-center">Số Suất</th>
+                  <th class="py-2.5 px-3 text-center">Số Vé</th>
+                  <th class="py-2.5 px-3 text-right rounded-tr-lg">Doanh Thu</th>
+                </tr>
+              </thead>
+              <tbody id="report-table-body" class="divide-y divide-slate-200"></tbody>
+            </table>
+          </div>
+        </div>
+
+        <!-- Thêm suất chiếu mới (QuanLySuatChieu) -->
+        <div class="lg:col-span-4 bg-white p-6 rounded-xl shadow-sm border border-slate-200">
+          <h3 class="font-bold text-base text-slate-800 mb-1">Thêm Suất Chiếu Mới</h3>
+          <p class="text-xs text-slate-500 mb-4">Use Case: QuanLySuatChieu</p>
+
+          <div class="space-y-3 text-sm">
+            <div>
+              <label class="block text-xs font-semibold text-slate-700 mb-1">Chọn Phim</label>
+              <select id="new-sc-movie" class="w-full px-3 py-2 border border-slate-300 rounded-lg"></select>
+            </div>
+            <div>
+              <label class="block text-xs font-semibold text-slate-700 mb-1">Phòng chiếu</label>
+              <select id="new-sc-room" class="w-full px-3 py-2 border border-slate-300 rounded-lg">
+                <option value="P01">P01 - Phòng chiếu 01 (24 ghế)</option>
+                <option value="P02">P02 - Phòng chiếu 02 (24 ghế)</option>
+              </select>
+            </div>
+            <div class="grid grid-cols-2 gap-2">
+              <div>
+                <label class="block text-xs font-semibold text-slate-700 mb-1">Ngày chiếu</label>
+                <select id="new-sc-date" class="w-full px-3 py-2 border border-slate-300 rounded-lg">
+                  <option value="2026-11-19">19/11/2026</option>
+                  <option value="2026-11-20">20/11/2026</option>
+                </select>
+              </div>
+              <div>
+                <label class="block text-xs font-semibold text-slate-700 mb-1">Giờ bắt đầu</label>
+                <input type="time" id="new-sc-time" value="22:00" class="w-full px-3 py-2 border border-slate-300 rounded-lg" />
+              </div>
+            </div>
+            <button onclick="addShowtime()"
+              class="w-full py-2.5 bg-[#004B8D] hover:bg-blue-800 text-white font-semibold rounded-lg text-sm transition">
+              + Lưu Suất Chiếu
+            </button>
+          </div>
+        </div>
+      </div>
+    </section>
+
+  </main>
+
+  <footer class="bg-white border-t border-slate-200 py-4 text-center text-xs text-slate-500 no-print">
+    Đồ án Phân tích &amp; Thiết kế Hệ thống Thông tin — Đề tài: Quản lý Đặt vé Xem phim tại Rạp TDMU (2026)
+  </footer>
+
+  <script>
+    // =========================================================================
+    // DỮ LIỆU MẪU & QUẢN LÝ LOCALSTORAGE (MÔ PHỎNG CSDL QUAN HỆ)
+    // =========================================================================
+    const STORAGE_KEY = 'TDMU_CINEMA_DB_V1';
+
+    const DEFAULT_DB = {
+      movies: [
+        { MaPhim: 'PH001', TenPhim: 'Lật Mặt 8: Vòng Tay Nắng', TheLoai: 'Tâm lý, Gia đình', ThoiLuong: 120, TrangThai: 'Đang chiếu' },
+        { MaPhim: 'PH002', TenPhim: 'Doraemon: Bản Giao Hưởng Địa Cầu', TheLoai: 'Hoạt hình, Phiêu lưu', ThoiLuong: 115, TrangThai: 'Đang chiếu' },
+        { MaPhim: 'PH003', TenPhim: 'Conan: Ngôi Sao 5 Cánh 1 Triệu Đô', TheLoai: 'Trinh thám, Hoạt hình', ThoiLuong: 110, TrangThai: 'Đang chiếu' }
+      ],
+      showtimes: [
+        { MaSuatChieu: 'SC01', MaPhim: 'PH001', MaPhong: 'P01', NgayChieu: '2026-11-19', GioBatDau: '14:00', GiaVeCoBan: 60000 },
+        { MaSuatChieu: 'SC02', MaPhim: 'PH001', MaPhong: 'P01', NgayChieu: '2026-11-19', GioBatDau: '19:15', GiaVeCoBan: 60000 },
+        { MaSuatChieu: 'SC03', MaPhim: 'PH002', MaPhong: 'P02', NgayChieu: '2026-11-19', GioBatDau: '15:30', GiaVeCoBan: 60000 },
+        { MaSuatChieu: 'SC04', MaPhim: 'PH003', MaPhong: 'P02', NgayChieu: '2026-11-19', GioBatDau: '20:30', GiaVeCoBan: 60000 },
+        { MaSuatChieu: 'SC05', MaPhim: 'PH001', MaPhong: 'P01', NgayChieu: '2026-11-20', GioBatDau: '18:30', GiaVeCoBan: 60000 }
+      ],
+      invoices: [
+        {
+          MaHD: 'HD-0001',
+          HoTen: 'Trần Minh Khoa',
+          SoDienThoai: '0909111222',
+          MssvTDMU: '2324802010001',
+          NgayLap: '2026-11-19 08:30',
+          TongTien: 51000,
+          TrangThaiTT: 'Đã thanh toán'
+        },
+        {
+          MaHD: 'HD-0002',
+          HoTen: 'Lê Thị Thu Hà',
+          SoDienThoai: '0909333444',
+          MssvTDMU: '',
+          NgayLap: '2026-11-19 09:15',
+          TongTien: 75000,
+          TrangThaiTT: 'Đã thanh toán'
+        }
+      ],
+      tickets: [
+        {
+          MaVe: 'VE-0001',
+          MaHD: 'HD-0001',
+          MaSuatChieu: 'SC02',
+          SoGhe: 'A3',
+          LoaiGhe: 'Thường',
+          GiaVeThucTe: 51000,
+          TrangThaiVe: 'Chưa sử dụng'
+        },
+        {
+          MaVe: 'VE-0002',
+          MaHD: 'HD-0002',
+          MaSuatChieu: 'SC02',
+          SoGhe: 'C3',
+          LoaiGhe: 'VIP',
+          GiaVeThucTe: 75000,
+          TrangThaiVe: 'Đã soát vé'
+        }
+      ]
+    };
+
+    let db = JSON.parse(localStorage.getItem(STORAGE_KEY)) || JSON.parse(JSON.stringify(DEFAULT_DB));
+    let currentShowtimeId = 'SC02';
+    let selectedSeats = [];
+
+    function saveDB() {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(db));
+      updateBadges();
+    }
+
+    function resetDemoData() {
+      if (confirm('Khôi phục toàn bộ dữ liệu vé và suất chiếu về trạng thái mẫu ban đầu?')) {
+        db = JSON.parse(JSON.stringify(DEFAULT_DB));
+        selectedSeats = [];
+        currentShowtimeId = 'SC02';
+        saveDB();
+        renderAll();
+        showToast('Đã khôi phục dữ liệu mẫu ban đầu!', 'bg-blue-600');
+      }
+    }
+
+    function formatMoney(amount) {
+      return amount.toLocaleString('vi-VN') + ' VNĐ';
+    }
+
+    function getNextTicketCode() {
+      const nextNum = db.tickets.length + 1;
+      return 'VE-' + String(nextNum).padStart(4, '0');
+    }
+
+    function showToast(msg, bgClass = 'bg-slate-800') {
+      const toast = document.getElementById('toast');
+      toast.textContent = msg;
+      toast.className = `fixed bottom-5 right-5 z-50 max-w-md px-4 py-3 rounded-xl shadow-xl text-white font-medium text-sm ${bgClass}`;
+      toast.classList.remove('hidden');
+      setTimeout(() => toast.classList.add('hidden'), 3500);
+    }
+
+    // =========================================================================
+    // ĐIỀU HƯỚNG TAB
+    // =========================================================================
+    function switchTab(tabName) {
+      ['booking', 'payment', 'checkin', 'admin'].forEach(t => {
+        document.getElementById('view-' + t).classList.add('hidden');
+        const btn = document.getElementById('tab-' + t);
+        btn.className = 'tab-btn px-3.5 py-2 rounded-lg text-sm font-semibold text-blue-100 hover:bg-blue-800 transition';
+      });
+      document.getElementById('view-' + tabName).classList.remove('hidden');
+      document.getElementById('tab-' + tabName).className = 'tab-btn px-3.5 py-2 rounded-lg text-sm font-semibold bg-white text-[#004B8D] shadow transition';
+
+      if (tabName === 'payment') renderInvoices();
+      if (tabName === 'admin') renderAdminReport();
+    }
+
+    function updateBadges() {
+      const unpaidCount = db.invoices.filter(i => i.TrangThaiTT === 'Chờ thanh toán').length;
+      const badge = document.getElementById('badge-unpaid');
+      if (unpaidCount > 0) {
+        badge.textContent = unpaidCount;
+        badge.classList.remove('hidden');
+      } else {
+        badge.classList.add('hidden');
+      }
+      document.getElementById('auto-ticket-id').textContent = getNextTicketCode();
+    }
+
+    // =========================================================================
+    // MH01 & MH02: HIỂN THỊ PHIM, SUẤT CHIẾU VÀ SƠ ĐỒ GHẾ
+    // =========================================================================
+    function renderMovies() {
+      const keyword = document.getElementById('search-movie').value.toLowerCase();
+      const selectedDate = document.getElementById('filter-date').value;
+      const container = document.getElementById('movie-list');
+
+      const filtered = db.movies.filter(m => m.TenPhim.toLowerCase().includes(keyword));
+      container.innerHTML = filtered.map(movie => {
+        const scList = db.showtimes.filter(s => s.MaPhim === movie.MaPhim && s.NgayChieu === selectedDate);
+        const buttonsHtml = scList.length
+          ? scList.map(sc => {
+              const active = sc.MaSuatChieu === currentShowtimeId
+                ? 'bg-[#004B8D] text-white border-[#004B8D]'
+                : 'bg-slate-50 text-slate-700 border-slate-300 hover:border-blue-500';
+              return `<button onclick="selectShowtime('${sc.MaSuatChieu}')" class="px-3 py-1.5 rounded-lg border text-xs font-bold transition ${active}">
+                        ${sc.GioBatDau} <span class="font-normal opacity-80">(${sc.MaPhong})</span>
+                      </button>`;
+            }).join('')
+          : `<span class="text-xs italic text-slate-400">Không có suất chiếu ngày này</span>`;
+
+        return `
+          <div class="bg-white p-4 rounded-xl shadow-sm border border-slate-200 flex flex-col justify-between">
+            <div>
+              <div class="flex items-center justify-between gap-2 mb-1">
+                <span class="text-[11px] font-bold px-2 py-0.5 rounded bg-blue-50 text-blue-700">${movie.MaPhim}</span>
+                <span class="text-xs text-slate-500">${movie.ThoiLuong} phút</span>
+              </div>
+              <h3 class="font-bold text-slate-800 text-base mb-1">${movie.TenPhim}</h3>
+              <p class="text-xs text-slate-500 mb-3">${movie.TheLoai}</p>
+            </div>
+            <div>
+              <p class="text-[11px] font-semibold text-slate-400 uppercase mb-1.5">Chọn khung giờ chiếu:</p>
+              <div class="flex flex-wrap gap-2">${buttonsHtml}</div>
+            </div>
+          </div>
+        `;
+      }).join('');
+    }
+
+    function selectShowtime(scId) {
+      currentShowtimeId = scId;
+      selectedSeats = [];
+      renderMovies();
+      renderSeatGrid();
+      updatePriceSummary();
+    }
+
+    function renderSeatGrid() {
+      const sc = db.showtimes.find(s => s.MaSuatChieu === currentShowtimeId);
+      const grid = document.getElementById('seat-grid');
+      if (!sc) return;
+
+      const movie = db.movies.find(m => m.MaPhim === sc.MaPhim);
+      document.getElementById('selected-showtime-title').textContent = `${movie.TenPhim} (${sc.GioBatDau})`;
+      document.getElementById('selected-room-badge').textContent = `Phòng: ${sc.MaPhong} | Ngày: ${sc.NgayChieu}`;
+      document.getElementById('summary-movie').textContent = movie.TenPhim;
+      document.getElementById('summary-time').textContent = `${sc.GioBatDau} - Phòng ${sc.MaPhong}`;
+
+      const bookedSeats = db.tickets
+        .filter(t => t.MaSuatChieu === sc.MaSuatChieu)
+        .map(t => t.SoGhe);
+
+      const rows = ['A', 'B', 'C', 'D'];
+      grid.innerHTML = rows.map(row => {
+        const isVip = (row === 'C' || row === 'D');
+        let colsHtml = '';
+        for (let i = 1; i <= 6; i++) {
+          const seatCode = `${row}${i}`;
+          const isBooked = bookedSeats.includes(seatCode);
+          const isSelected = selectedSeats.includes(seatCode);
+
+          let btnClass = '';
+          if (isBooked) {
+            btnClass = 'bg-slate-400 text-white border-slate-400 cursor-not-allowed';
+          } else if (isSelected) {
+            btnClass = 'bg-amber-500 text-white border-amber-600 font-bold shadow-sm scale-105';
+          } else if (isVip) {
+            btnClass = 'bg-purple-50 text-purple-900 border-purple-400 hover:bg-purple-100';
+          } else {
+            btnClass = 'bg-white text-slate-700 border-slate-300 hover:border-blue-500';
+          }
+
+          colsHtml += `
+            <button type="button" ${isBooked ? 'disabled' : `onclick="toggleSeat('${seatCode}')"`}
+              class="w-11 h-9 rounded-lg border-2 text-xs font-semibold transition ${btnClass}">
+              ${seatCode}
+            </button>
+          `;
+        }
+        return `
+          <div class="flex items-center justify-center gap-2">
+            <span class="w-6 text-xs font-bold text-slate-400">${row}</span>
+            <div class="flex gap-2">${colsHtml}</div>
+            <span class="w-12 text-[10px] font-semibold ${isVip ? 'text-purple-600' : 'text-slate-400'}">${isVip ? 'VIP' : 'Thường'}</span>
+          </div>
+        `;
+      }).join('');
+    }
+
+    function toggleSeat(seatCode) {
+      if (selectedSeats.includes(seatCode)) {
+        selectedSeats = selectedSeats.filter(s => s !== seatCode);
+      } else {
+        selectedSeats.push(seatCode);
+      }
+      renderSeatGrid();
+      updatePriceSummary();
+    }
+
+    function calculateTotal() {
+      const sc = db.showtimes.find(s => s.MaSuatChieu === currentShowtimeId);
+      if (!sc || selectedSeats.length === 0) return { total: 0, isStudent: false };
+
+      let rawTotal = 0;
+      selectedSeats.forEach(seat => {
+        const isVip = seat.startsWith('C') || seat.startsWith('D');
+        rawTotal += sc.GiaVeCoBan + (isVip ? 15000 : 0);
+      });
+
+      const mssv = document.getElementById('cust-mssv').value.trim();
+      const isStudent = /^2\d{7,12}$/.test(mssv);
+      const finalTotal = isStudent ? Math.round(rawTotal * 0.85) : rawTotal;
+      return { total: finalTotal, isStudent };
+    }
+
+    function updatePriceSummary() {
+      document.getElementById('summary-seats').textContent = selectedSeats.length ? selectedSeats.join(', ') : 'Chưa chọn ghế';
+      const { total, isStudent } = calculateTotal();
+      document.getElementById('summary-total').textContent = formatMoney(total);
+
+      const note = document.getElementById('discount-note');
+      if (isStudent && selectedSeats.length > 0) {
+        note.classList.remove('hidden');
+      } else {
+        note.classList.add('hidden');
+      }
+    }
+
+    function cancelBookingForm() {
+      selectedSeats = [];
+      document.getElementById('cust-name').value = '';
+      document.getElementById('cust-phone').value = '';
+      document.getElementById('cust-mssv').value = '';
+      renderSeatGrid();
+      updatePriceSummary();
+      showToast('Đã hủy thao tác và giải phóng các ghế đang chọn.', 'bg-slate-600');
+    }
+
+    function submitBooking() {
+      const name = document.getElementById('cust-name').value.trim();
+      const phone = document.getElementById('cust-phone').value.trim();
+      const mssv = document.getElementById('cust-mssv').value.trim();
+
+      // Dòng rẽ nhánh 1: Kiểm tra thiếu thông tin bắt buộc
+      if (selectedSeats.length === 0) {
+        showToast('Lỗi: Vui lòng chọn ít nhất 1 ghế trống trên sơ đồ!', 'bg-red-600');
+        return;
+      }
+      if (!name || !phone) {
+        showToast('Lỗi: Vui lòng nhập đầy đủ Họ tên và Số điện thoại khách hàng!', 'bg-red-600');
+        return;
+      }
+
+      const sc = db.showtimes.find(s => s.MaSuatChieu === currentShowtimeId);
+      const { total, isStudent } = calculateTotal();
+      const newMaHD = 'HD-' + String(db.invoices.length + 1).padStart(4, '0');
+
+      db.invoices.unshift({
+        MaHD: newMaHD,
+        HoTen: name,
+        SoDienThoai: phone,
+        MssvTDMU: isStudent ? mssv : '',
+        NgayLap: new Date().toLocaleString('vi-VN'),
+        TongTien: total,
+        TrangThaiTT: 'Chờ thanh toán'
+      });
+
+      selectedSeats.forEach(seat => {
+        const isVip = seat.startsWith('C') || seat.startsWith('D');
+        const basePrice = sc.GiaVeCoBan + (isVip ? 15000 : 0);
+        const actualPrice = isStudent ? Math.round(basePrice * 0.85) : basePrice;
+
+        db.tickets.push({
+          MaVe: getNextTicketCode(),
+          MaHD: newMaHD,
+          MaSuatChieu: sc.MaSuatChieu,
+          SoGhe: seat,
+          LoaiGhe: isVip ? 'VIP' : 'Thường',
+          GiaVeThucTe: actualPrice,
+          TrangThaiVe: 'Chưa sử dụng'
+        });
+      });
+
+      selectedSeats = [];
+      document.getElementById('cust-name').value = '';
+      document.getElementById('cust-phone').value = '';
+      document.getElementById('cust-mssv').value = '';
+
+      saveDB();
+      renderSeatGrid();
+      updatePriceSummary();
+      showToast(`Đặt vé thành công (${newMaHD})! Vui lòng xác nhận thanh toán.`, 'bg-emerald-600');
+      switchTab('payment');
+    }
+
+    // =========================================================================
+    // MH03: THANH TOÁN & VÉ ĐIỆN TỬ QR
+    // =========================================================================
+    function renderQRCodeSVG(code) {
+      return `
+        <svg viewBox="0 0 100 100" class="w-24 h-24 border border-slate-200 p-1.5 rounded-lg bg-white mx-auto">
+          <rect x="5" y="5" width="25" height="25" fill="#0f172a"/>
+          <rect x="10" y="10" width="15" height="15" fill="#fff"/>
+          <rect x="13" y="13" width="9" height="9" fill="#0f172a"/>
+          <rect x="70" y="5" width="25" height="25" fill="#0f172a"/>
+          <rect x="75" y="10" width="15" height="15" fill="#fff"/>
+          <rect x="78" y="13" width="9" height="9" fill="#0f172a"/>
+          <rect x="5" y="70" width="25" height="25" fill="#0f172a"/>
+          <rect x="10" y="75" width="15" height="15" fill="#fff"/>
+          <rect x="13" y="78" width="9" height="9" fill="#0f172a"/>
+          <rect x="40" y="10" width="8" height="8" fill="#0f172a"/>
+          <rect x="52" y="22" width="10" height="10" fill="#0f172a"/>
+          <rect x="38" y="40" width="24" height="24" fill="#004B8D"/>
+          <rect x="12" y="42" width="14" height="14" fill="#0f172a"/>
+          <rect x="72" y="45" width="16" height="16" fill="#0f172a"/>
+          <rect x="42" y="75" width="12" height="18" fill="#0f172a"/>
+          <rect x="65" y="72" width="22" height="12" fill="#0f172a"/>
+        </svg>
+        <p class="text-[11px] font-mono font-bold text-center text-slate-700 mt-1">${code}</p>
+      `;
+    }
+
+    function renderInvoices() {
+      const container = document.getElementById('invoice-list');
+      container.innerHTML = db.invoices.map(inv => {
+        const invTickets = db.tickets.filter(t => t.MaHD === inv.MaHD);
+        const firstTicket = invTickets[0];
+        const sc = db.showtimes.find(s => s.MaSuatChieu === firstTicket.MaSuatChieu);
+        const movie = db.movies.find(m => m.MaPhim === sc.MaPhim);
+        const isPaid = inv.TrangThaiTT === 'Đã thanh toán';
+
+        return `
+          <div class="bg-white p-5 rounded-xl shadow-sm border ${isPaid ? 'border-emerald-200' : 'border-amber-300'} flex flex-col justify-between">
+            <div>
+              <div class="flex items-center justify-between pb-3 mb-3 border-b border-slate-100">
+                <div>
+                  <span class="font-mono font-bold text-sm text-[#004B8D]">${inv.MaHD}</span>
+                  <span class="text-xs text-slate-400 ml-2">${inv.NgayLap}</span>
+                </div>
+                <span class="px-2.5 py-1 rounded-full text-xs font-bold ${isPaid ? 'bg-emerald-100 text-emerald-700' : 'bg-amber-100 text-amber-800'}">
+                  ${inv.TrangThaiTT}
+                </span>
+              </div>
+
+              <div class="grid grid-cols-3 gap-3 items-center">
+                <div class="col-span-2 space-y-1 text-sm">
+                  <p class="font-bold text-slate-800">${movie.TenPhim}</p>
+                  <p class="text-xs text-slate-600">Suất: <strong>${sc.GioBatDau}</strong> (${sc.NgayChieu}) | Phòng: <strong>${sc.MaPhong}</strong></p>
+                  <p class="text-xs text-slate-600">Khách: <strong>${inv.HoTen}</strong> - ${inv.SoDienThoai}</p>
+                  <p class="text-xs text-slate-600">Mã vé: <strong class="font-mono text-blue-700">${invTickets.map(t => `${t.MaVe} (${t.SoGhe})`).join(', ')}</strong></p>
+                  <p class="text-sm font-extrabold text-[#004B8D] pt-1">Tổng tiền: ${formatMoney(inv.TongTien)}</p>
+                </div>
+                <div>
+                  ${renderQRCodeSVG(invTickets.map(t => t.MaVe).join(','))}
+                </div>
+              </div>
+            </div>
+
+            <div class="mt-4 pt-3 border-t border-slate-100 flex justify-end gap-2">
+              ${!isPaid ? `
+                <button onclick="confirmPayment('${inv.MaHD}')" class="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold rounded-lg shadow transition">
+                  ✓ Xác nhận đã thanh toán
+                </button>
+              ` : `
+                <button onclick="window.print()" class="px-3.5 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-semibold rounded-lg transition">
+                  In / Lưu thẻ vé PDF
+                </button>
+              `}
+            </div>
+          </div>
+        `;
+      }).join('');
+    }
+
+    function confirmPayment(maHD) {
+      const inv = db.invoices.find(i => i.MaHD === maHD);
+      if (inv) {
+        inv.TrangThaiTT = 'Đã thanh toán';
+        saveDB();
+        renderInvoices();
+        showToast(`Hóa đơn ${maHD} đã thanh toán thành công! Vé điện tử đã sẵn sàng.`, 'bg-emerald-600');
+      }
+    }
+
+    // =========================================================================
+    // MH04: SOÁT VÉ VÀO RẠP
+    // =========================================================================
+    function quickFillCheckin(code) {
+      document.getElementById('checkin-code').value = code;
+      verifyTicket();
+    }
+
+    function verifyTicket() {
+      const code = document.getElementById('checkin-code').value.trim().toUpperCase();
+      const resultBox = document.getElementById('checkin-result');
+      resultBox.classList.remove('hidden');
+
+      const ticket = db.tickets.find(t => t.MaVe === code);
+      if (!ticket) {
+        resultBox.className = 'mt-6 p-4 rounded-xl border border-red-300 bg-red-50 text-red-800';
+        resultBox.innerHTML = `<p class="font-bold text-base">✕ MÃ VÉ KHÔNG TỒN TẠI</p><p class="text-xs mt-1">Không tìm thấy mã vé <strong>${code}</strong> trong cơ sở dữ liệu rạp TDMU.</p>`;
+        return;
+      }
+
+      const inv = db.invoices.find(i => i.MaHD === ticket.MaHD);
+      const sc = db.showtimes.find(s => s.MaSuatChieu === ticket.MaSuatChieu);
+      const movie = db.movies.find(m => m.MaPhim === sc.MaPhim);
+
+      if (inv.TrangThaiTT !== 'Đã thanh toán') {
+        resultBox.className = 'mt-6 p-4 rounded-xl border border-amber-300 bg-amber-50 text-amber-900';
+        resultBox.innerHTML = `<p class="font-bold text-base">⚠ VÉ CHƯA THANH TOÁN</p><p class="text-xs mt-1">Hóa đơn <strong>${inv.MaHD}</strong> chưa hoàn tất thanh toán. Không thể qua cổng.</p>`;
+        return;
+      }
+
+      if (ticket.TrangThaiVe === 'Đã soát vé') {
+        resultBox.className = 'mt-6 p-4 rounded-xl border border-red-300 bg-red-50 text-red-800';
+        resultBox.innerHTML = `
+          <p class="font-bold text-base">✕ CẢNH BÁO: VÉ ĐÃ ĐƯỢC SỬ DỤNG TRƯỚC ĐÓ</p>
+          <p class="text-xs mt-1">Mã vé <strong>${ticket.MaVe}</strong> (Ghế ${ticket.SoGhe} - Phòng ${sc.MaPhong}) đã qua cổng kiểm soát. Từ chối truy cập!</p>
+        `;
+        return;
+      }
+
+      // Vé hợp lệ -> Cập nhật trạng thái
+      ticket.TrangThaiVe = 'Đã soát vé';
+      saveDB();
+
+      resultBox.className = 'mt-6 p-4 rounded-xl border border-emerald-300 bg-emerald-50 text-emerald-900';
+      resultBox.innerHTML = `
+        <p class="font-bold text-base text-emerald-700">✓ VÉ HỢP LỆ — CHO PHÉP VÀO RẠP</p>
+        <div class="mt-2 text-xs space-y-1">
+          <p>• Mã vé: <strong>${ticket.MaVe}</strong> | Khách hàng: <strong>${inv.HoTen}</strong></p>
+          <p>• Phim: <strong>${movie.TenPhim}</strong></p>
+          <p>• Phòng chiếu: <strong>${sc.MaPhong}</strong> | Vị trí ghế: <strong>${ticket.SoGhe} (${ticket.LoaiGhe})</strong> | Suất: <strong>${sc.GioBatDau}</strong></p>
+          <p>• Trạng thái hệ thống: Đã cập nhật thành <strong>"Đã soát vé"</strong></p>
+        </div>
+      `;
+    }
+
+    // =========================================================================
+    // MH05: QUẢN LÝ SUẤT CHIẾU & BÁO CÁO THỐNG KÊ DOANH THU
+    // =========================================================================
+    function renderAdminReport() {
+      const paidInvoices = db.invoices.filter(i => i.TrangThaiTT === 'Đã thanh toán');
+      const paidInvoiceIds = paidInvoices.map(i => i.MaHD);
+      const paidTickets = db.tickets.filter(t => paidInvoiceIds.includes(t.MaHD));
+
+      const totalRevenue = paidInvoices.reduce((sum, i) => sum + i.TongTien, 0);
+      const totalSeatsCapacity = db.showtimes.length * 24;
+      const occupancy = totalSeatsCapacity > 0 ? Math.round((paidTickets.length / totalSeatsCapacity) * 100) : 0;
+
+      document.getElementById('kpi-revenue').textContent = formatMoney(totalRevenue);
+      document.getElementById('kpi-tickets').textContent = `${paidTickets.length} vé`;
+      document.getElementById('kpi-occupancy').textContent = `${occupancy}%`;
+
+      const tbody = document.getElementById('report-table-body');
+      tbody.innerHTML = db.movies.map(movie => {
+        const movieShowtimes = db.showtimes.filter(s => s.MaPhim === movie.MaPhim);
+        const scIds = movieShowtimes.map(s => s.MaSuatChieu);
+        const movieTickets = paidTickets.filter(t => scIds.includes(t.MaSuatChieu));
+        const movieRev = movieTickets.reduce((sum, t) => sum + t.GiaVeThucTe, 0);
+
+        return `
+          <tr class="hover:bg-slate-50">
+            <td class="py-2.5 px-3 font-mono font-semibold text-xs text-blue-700">${movie.MaPhim}</td>
+            <td class="py-2.5 px-3 font-medium text-slate-800">${movie.TenPhim}</td>
+            <td class="py-2.5 px-3 text-center">${movieShowtimes.length}</td>
+            <td class="py-2.5 px-3 text-center font-semibold">${movieTickets.length}</td>
+            <td class="py-2.5 px-3 text-right font-bold text-[#004B8D]">${formatMoney(movieRev)}</td>
+          </tr>
+        `;
+      }).join('');
+
+      const movieSelect = document.getElementById('new-sc-movie');
+      movieSelect.innerHTML = db.movies.map(m => `<option value="${m.MaPhim}">${m.MaPhim} - ${m.TenPhim}</option>`).join('');
+    }
+
+    function addShowtime() {
+      const maPhim = document.getElementById('new-sc-movie').value;
+      const maPhong = document.getElementById('new-sc-room').value;
+      const ngayChieu = document.getElementById('new-sc-date').value;
+      const gioBatDau = document.getElementById('new-sc-time').value;
+
+      if (!gioBatDau) {
+        showToast('Vui lòng chọn giờ bắt đầu suất chiếu!', 'bg-red-600');
+        return;
+      }
+
+      const newId = 'SC' + String(db.showtimes.length + 1).padStart(2, '0');
+      db.showtimes.push({
+        MaSuatChieu: newId,
+        MaPhim: maPhim,
+        MaPhong: maPhong,
+        NgayChieu: ngayChieu,
+        GioBatDau: gioBatDau,
+        GiaVeCoBan: 60000
+      });
+
+      saveDB();
+      renderAdminReport();
+      renderMovies();
+      showToast(`Đã thêm suất chiếu mới (${newId} - ${gioBatDau} tại ${maPhong})!`, 'bg-emerald-600');
+    }
+
+    function exportCSV() {
+      const paidInvoiceIds = db.invoices.filter(i => i.TrangThaiTT === 'Đã thanh toán').map(i => i.MaHD);
+      const paidTickets = db.tickets.filter(t => paidInvoiceIds.includes(t.MaHD));
+
+      let csv = '﻿Ma Phim,Ten Phim,So Suat Chieu,So Ve Da Ban,Doanh Thu (VND)
+';
+      db.movies.forEach(movie => {
+        const scIds = db.showtimes.filter(s => s.MaPhim === movie.MaPhim).map(s => s.MaSuatChieu);
+        const mTickets = paidTickets.filter(t => scIds.includes(t.MaSuatChieu));
+        const rev = mTickets.reduce((sum, t) => sum + t.GiaVeThucTe, 0);
+        csv += `"${movie.MaPhim}","${movie.TenPhim}",${scIds.length},${mTickets.length},${rev}
+`;
+      });
+
+      const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = 'BaoCaoDoanhThu_RapTDMU.csv';
+      a.click();
+      showToast('Đã xuất file báo cáo Excel (.CSV) thành công!', 'bg-emerald-600');
+    }
+
+    function renderAll() {
+      updateBadges();
+      renderMovies();
+      renderSeatGrid();
+      updatePriceSummary();
+    }
+
+    renderAll();
+  </script>
+</body>
+</html>
